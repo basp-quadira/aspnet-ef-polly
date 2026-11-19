@@ -28,12 +28,14 @@ var builder = WebApplication.CreateBuilder(args);
 var connectionString = builder.Configuration.GetConnectionString("DefaultConnection");
 
 builder.Services.AddScoped<SimulatedConnectionFaultInterceptor>();
+builder.Services.AddScoped<SimulatedTransientErrorInterceptor>();
 
 builder.Services.AddDbContext<FooContext>((sp, ef) =>
 {
     IInterceptor[] interceptors =
     [
-        sp.GetRequiredService<SimulatedConnectionFaultInterceptor>(),
+        // sp.GetRequiredService<SimulatedConnectionFaultInterceptor>(),
+        // sp.GetRequiredService<SimulatedTransientErrorInterceptor>(),
     ];
 
     ef.UseNpgsql(connectionString);
@@ -43,18 +45,21 @@ builder.Services.AddDbContext<FooContext>((sp, ef) =>
 
 builder.Services
     .AddHealthChecks()
-    .AddDbContextCheck<FooContext>(
-        customTestQuery: async (db, ct) =>
-        {
-            return await db.Database.ExecuteWithResilienceAsync(
-                pipeline,
-                async token =>
-                {
-                    await db.Database.ExecuteSqlRawAsync("SELECT 1", token);
-                    return true;
-                },
-                ct);
-        });
+    // Doesnt work:
+    .AddDbContextCheck<FooContext>();
+    // Works:
+    // .AddDbContextCheck<FooContext>(
+    //     customTestQuery: async (db, ct) =>
+    //     {
+    //         return await db.Database.ExecuteWithResilienceAsync(
+    //             pipeline,
+    //             async token =>
+    //             {
+    //                 await db.Database.ExecuteSqlRawAsync("SELECT 1", token);
+    //                 return true;
+    //             },
+    //             ct);
+    //     });
 
 var app = builder.Build();
 
@@ -64,11 +69,17 @@ app.MapGet(
     "/", 
     () => "Hello World!");
 
+// This works:
+// app.MapGet("/items",
+//     async (FooContext db) =>
+//         await db.Database.ExecuteWithResilienceAsync(
+//             pipeline,
+//             ct => db.Items.ToListAsync(ct)));
+
+// This doesnt work:
 app.MapGet("/items",
     async (FooContext db) =>
-        await db.Database.ExecuteWithResilienceAsync(
-            pipeline,
-            ct => db.Items.ToListAsync(ct)));
+        await db.Items.ToListAsync());
 
 app.MapPost("/items",
     async (FooContext db, Item item) =>
