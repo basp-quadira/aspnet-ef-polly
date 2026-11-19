@@ -11,14 +11,12 @@ var pipeline = new ResiliencePipelineBuilder()
     {
         OnRetry = (args) =>
         {
-            Console.WriteLine("RETRY");
+            Console.WriteLine("------------------------ RETRY ------------------------");
             return new ValueTask();
         },
         MaxRetryAttempts = 10,
         Delay = TimeSpan.FromMilliseconds(100),
         BackoffType = DelayBackoffType.Exponential,
-        // EF's execution strategy wraps transient exceptions from queries/SaveChanges
-        // in InvalidOperationException, so inspect inner exceptions as well.
         ShouldHandle = new PredicateBuilder()
             .Handle<Exception>(IsTransient),
     })
